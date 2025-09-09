@@ -1,0 +1,24 @@
+function [a,b]=aurea(a,b,x,f,d)
+
+epsilon=10^-5;
+x1= b-(2/(1+sqrt(5)))*(b-a);
+x=x+x1'*d;
+f1=f;
+x2= a+(2/(1+sqrt(5)))*(b-a);
+x=x+x2'*d;
+f2=f();
+
+while ((b-a)/2) > epsilon
+if f1<=f2
+    b=x2;
+    x2=x1;
+    x1=b-(2/(1+sqrt(5)))*(b-a);
+else
+    a=x1;
+    x1=x2;
+    x2=a+(2/(1+sqrt(5)))*(b-a);
+end
+
+
+
+end

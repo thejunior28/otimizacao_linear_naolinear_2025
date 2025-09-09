@@ -1,0 +1,740 @@
+clear;
+clc;
+
+% Matrizes e vetores da função objetivo
+[A, arrows, cols, entries, rep, field, symm] = mmread('bfw62b.mtx');
+b = ones(1, cols);
+c = rand(1, 1);
+
+fprintf("Escolha um método de resolução.\n");
+met_res = input("Método gradiente (1), Método de Newton (2), Método de Gradientes Conjugados (3), Método Quasi-Newton (4): ");
+fprintf("\n");
+
+if met_res > 4 || met_res < 1
+    fprintf("Recomendo escolher um dos métodos propostos.\n");
+    return
+end
+
+% n_max = input("Número máximo de iterações: ");
+n_max = 1e9;
+
+% func = input("\nEscolha uma função (de 1 a 4): ");
+func = 4;
+
+x0 = ones(cols, 1);
+
+if func == 1
+    f = @(x) sqrt(1 + (x' * A * x)^2);
+    
+    % Gradiente
+    df = @(x) (4 * A * x * (x' * A * x)) / sqrt(1 + (x' * A * x)^2);
+    
+    % Hessiano
+    hess = @(x) (4 * A / sqrt(1 + (x' * A * x)^2)) + ...
+                 (8 * (A * x) * (x' * A * x)' * (A * x)') / ...
+                 (1 + (x' * A * x)^2)^(3/2);
+    
+    fprintf("Função raiz quadrada\n");
+elseif func == 2
+    f = @(x) -log(1 + exp(x' * A * x));
+    
+    % Gradiente
+    df = @(x) -exp(x' * A * x) * A * x / (1 + exp(x' * A * x));
+    
+    % Hessiano
+    hess = @(x) -(exp(x' * A * x) * A) / (1 + exp(x' * A * x)) + ...
+                 (exp(x' * A * x) * A * x * (A * x)') / ...
+                 (1 + exp(x' * A * x))^2;
+    
+    fprintf("Função logarítmica\n");
+elseif func == 3
+    f = @(x) sin(x' * A * x);
+    
+    % Gradiente
+    df = @(x) cos(x' * A * x) * A * x;
+    
+    % Hessiano
+    hess = @(x) -sin(x' * A * x) * (A * x * (A * x)');
+    
+    fprintf("Função seno\n");
+elseif func == 4
+    f = @(x) 0.5 * x' * A * x;
+    
+    % Gradiente
+    df = @(x) A * x;
+    
+    % Hessiano
+    hess = @(x) A;
+    
+    fprintf("Função quadrática\n");
+end
+
+x = x0;
+%epsilon = input("\nTolerância: ");
+epsilon = 1e-6;
+fprintf("\nTolerância: %d\n", epsilon);
+
+% Inicializa valores para gradientes e hessianos
+func_values = [];
+grad_norms = [];
+   
+   
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                       MÉTODO GRADIENTE                      %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+if met_res == 1
+
+    busca = input("\nUtilizar Método de Seção Áurea (1) ou Busca de Armijo (2)? ");
+
+    if busca == 1
+
+        tstart = tic;
+
+        for i = 1:n_max
+
+            % Calculando os valores da função e gradiente
+            func_values(end + 1) = f(x); % Salvar valor da função
+            grad_norms(end + 1) = norm(df(x)); % Salvar norma do gradiente
+
+            if isnan(norm(df(x)))
+                fprintf("\nDerivada muito próxima de zero!\n");
+                fprintf("Iteração %2.f\n", i);
+
+                % Gráfico de Convergência
+                figure;
+                subplot(2, 1, 1);
+                plot(func_values, '-o');
+                title('Função Objetivo');
+                xlabel('Iterações');
+                ylabel('Valor da Função Objetivo');
+
+                subplot(2, 1, 2);
+                plot(grad_norms, '-o');
+                title('Convergência da Norma do Gradiente');
+                xlabel('Iterações');
+                ylabel('Norma do Gradiente');
+
+                return
+            end
+
+            d = -df(x); % Direção de Descida
+
+            % Parâmetros iniciais
+            a = 0; % Limite inferior do intervalo
+            b = 2; % Limite superior do intervalo
+            tau = 2 / (1 + sqrt(5)); % Razão áurea
+
+            % Cálculo inicial de x1, x2 e avaliação da função
+            x1 = b - tau * (b - a);
+            x2 = a + tau * (b - a);
+            f1 = f(x + x1 * d); % Avaliação de f em x1
+            f2 = f(x + x2 * d); % Avaliação de f em x2
+
+            % Loop principal da busca áurea
+            while (b - a) / 2 > epsilon
+                if f1 < f2
+                    b = x2;
+                    x2 = x1;
+                    f2 = f1;
+                    x1 = b - tau * (b - a);
+                    f1 = f(x + x1 * d);
+                else
+                    a = x1;
+                    x1 = x2;
+                    f1 = f2;
+                    x2 = a + tau * (b - a);
+                    f2 = f(x + x2 * d);
+                end
+            end
+
+            % O valor ótimo de tk é a média dos limites finais
+            tk = (a + b) / 2;
+
+            x = x + tk * d;
+            fo = f(x);
+
+            if norm(df(x)) < epsilon
+                telapsed = toc(tstart);
+                fprintf("\nSolução:\n");
+                fprintf("Número de iterações: %1.f\n", i);
+                fprintf("Função objetivo = %d\n", fo);
+                fprintf("Tempo computacional: %d segundos\n", telapsed);
+                fprintf("Norma do gradiente: %d\n", norm(df(x)));
+
+                % Gráfico de Convergência
+                figure;
+                subplot(2, 1, 1);
+                plot(func_values, '-o');
+                title('Função Objetivo');
+                xlabel('Iterações');
+                ylabel('Valor da Função Objetivo');
+
+                subplot(2, 1, 2);
+                plot(grad_norms, '-o');
+                title('Convergência da Norma do Gradiente');
+                xlabel('Iterações');
+                ylabel('Norma do Gradiente');
+
+                return
+            end
+        end
+
+    elseif busca == 2
+
+        alpha = 1;
+        beta = 0.5;
+        sigma = 1e-4;
+
+        tstart = tic;
+
+        % Parâmetros iniciais
+        x = x0; % Ponto inicial
+        fo = f(x); % Valor inicial da função
+
+        % Loop principal do método
+        for i = 1:n_max
+
+            grad = df(x); % Gradiente no ponto atual
+
+            % Calculando os valores da função e gradiente
+            func_values(end + 1) = f(x); % Salvar valor da função
+            grad_norms(end + 1) = norm(grad); % Salvar norma do gradiente
+
+            if norm(grad) < epsilon
+                telapsed = toc(tstart);
+                fprintf("\nSolução:\n");
+                fprintf("Número de iterações: %1.f\n", i);
+                fprintf("Função objetivo = %d\n", f(x));
+                fprintf("Tempo computacional: %d segundos\n", telapsed);
+                fprintf("Norma do gradiente: %d\n", norm(grad));
+
+                % Gráfico de Convergência
+                figure;
+                subplot(2, 1, 1);
+                plot(func_values, '-o');
+                title('Função Objetivo');
+                xlabel('Iterações');
+                ylabel('Valor da Função Objetivo');
+
+                subplot(2, 1, 2);
+                plot(grad_norms, '-o');
+                title('Convergência da Norma do Gradiente');
+                xlabel('Iterações');
+                ylabel('Norma do Gradiente');
+
+                return
+            end
+   
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
+% MÉTODO DE NEWTON %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+ elseif met_res == 2
+
+busca = input("\nUtilizar Método de Seção Áurea (1) ou Busca de Armijo (2)? ");
+
+if busca == 1
+
+tstart = tic;
+
+for i = 1:n_max
+    
+    grad = df(x);
+    % Calculando os valores da função e gradiente
+    func_values(end+1) = f(x); % Salvar valor da função
+    grad_norms(end+1) = norm(df(x)); % Salvar norma do gradiente
+
+    if isnan(norm(df(x)))
+        fprintf("\nDerivada muito próxima de zero!\n");
+        fprintf("Iteração %2.f\n", i);
+
+        % Gráfico de Convergência
+        figure;
+        subplot(2, 1, 1);
+        plot(func_values, '-o');
+        title('Função Objetivo');
+        xlabel('Iterações');
+        ylabel('Valor da Função Objetivo');
+
+        subplot(2, 1, 2);
+        plot(grad_norms, '-o');
+        title('Convergência da Norma do Gradiente');
+        xlabel('Iterações');
+        ylabel('Norma do Gradiente');
+
+        return
+    end
+
+    h = hess(x);
+
+    p = -h \ grad; % Direção de Descida
+
+    a = zeros(cols, 1);
+    b = 2 * ones(cols, 1);
+
+    x1 = b - (2 / (1 + sqrt(5))) * (b - a);
+    f1 = f(x + x1' * p);
+    x2 = a + (2 / (1 + sqrt(5))) * (b - a);
+    f2 = f(x + x2' * p);
+
+    while ((b - a) / 2) > epsilon
+        if f1 < f2
+            b = x2;
+            x2 = x1;
+            x1 = b - (2 / (1 + sqrt(5))) * (b - a);
+        else
+            a = x1;
+            x1 = x2;
+            x2 = a + (2 / (1 + sqrt(5))) * (b - a);
+        end
+    end
+
+    if f(x1) < f(x2)
+        tk = x1;
+    else
+        tk = x2;
+    end
+
+    x = x + tk' * p;
+    fo = f(x);
+
+    if norm(df(x)) < epsilon
+        telapsed = toc(tstart);
+        fprintf("\nSolução:\n");
+        fprintf("Número de iterações: %1.f\n", i);
+        fprintf("Função objetivo = %d\n", fo);
+        fprintf("Tempo computacional: %d segundos\n", telapsed);
+        fprintf("Norma do gradiente: %d\n", norm(df(x)));
+
+        % Gráfico de Convergência
+        figure;
+        subplot(2, 1, 1);
+        plot(func_values, '-o');
+        title('Função Objetivo');
+        xlabel('Iterações');
+        ylabel('Valor da Função Objetivo');
+
+        subplot(2, 1, 2);
+        plot(grad_norms, '-o');
+        title('Convergência da Norma do Gradiente');
+        xlabel('Iterações');
+        ylabel('Norma do Gradiente');
+
+        return
+    end
+end
+
+elseif busca == 2
+
+alpha = 1;
+beta = 0.5;
+sigma = 1e-4;
+
+while norm(df(x)) > epsilon
+    p = -df(x);
+
+    while f(x + alpha * p) > f(x) + sigma * alpha * (df(x)' * p)
+        alpha = beta * alpha;
+    end
+
+    x = x + alpha * p;
+end
+telapsed = toc(tstart);
+
+fprintf("\nSolução:\n");
+fprintf("Tempo computacional: %d segundos\n", telapsed);
+end
+   
+   
+%% Método de Gradientes Conjugados ===========================================================================
+
+r       =       df(x);       % Resíduo inicial
+p       =       -r;       % Direção de descida inicial
+
+busca  =       input(" \nUtilizar Método de Seção Áurea (1) ou Busca de Armijo (2)? ");
+
+if       busca       ==       1
+
+    start       =       tic;
+
+    for       i       =       1 : n_max
+
+        % Calculando os valores da função e gradiente
+        func_values(end + 1)       =       f(x);           % Salvar valor da função
+        grad_norms(end + 1)       =       norm(df(x));           % Salvar norma do gradiente
+
+        % Verificação de convergência
+        if       norm(r)       <       epsilon
+
+            fo = f(x);
+            break;
+        end
+
+        if       isnan(norm(df(x)))
+
+            fprintf(" \nDerivada muito próxima de zero! \n");
+            fprintf("Iteração %2.f \n", i);
+            elapsed       =       toc(start);
+
+            % Gráfico de Convergência
+            figure;
+            subplot(2, 1, 1);
+            plot(func_values,       '-o');
+            title('Função Objetivo');
+            xlabel('Iterações');
+            ylabel('Valor da Função Objetivo');
+
+            subplot(2, 1, 2);
+            plot(grad_norms,       '-o');
+            title('Convergência da Norma do Gradiente');
+            xlabel('Iterações');
+            ylabel('Norma do Gradiente');
+
+            return
+        end
+
+        % Busca de seção áurea para determinar o tamanho do passo
+        a       =       0;       % Limite inferior
+        b       =       1;       % Limite superior
+        phi       =       @(alpha) f(x + alpha * p);       % Função a ser minimizada
+
+        while       (b - a)       >       epsilon
+
+            % Cálculo dos pontos internos
+            x1       =       a       +       (sqrt(5) - 1) / 2       *       (b - a);
+            x2       =       b       -       (sqrt(5) - 1) / 2       *       (b - a);
+
+            % Avaliação da função objetivo
+            f1       =       phi(x1);
+            f2       =       phi(x2);
+
+            % Atualização dos limites
+            if       f1       <       f2
+
+                b       =       x2;       % O ponto 1 é melhor
+            else
+
+                a       =       x1;       % O ponto 2 é melhor ou igual
+            end
+        end
+
+        % Tamanho do passo é a média dos limites
+        alpha       =       (a + b) / 2;
+
+        % Atualização do ponto
+        x_new       =       x       +       alpha * p;
+        r_new       =       df(x_new);       % Novo resíduo
+
+        % Atualização da direção conjugada
+        beta       =       (r_new' * r_new) / (r' * r);
+        p       =       -r_new       +       beta * p;       % Nova direção
+
+        x       =       x_new;       % Atualizar x
+        r       =       r_new;       % Atualizar resíduo
+        fo = f(x);
+
+elseif       busca       ==       2
+
+    alpha = 1;
+    beta  = 0.5;
+    sigma = 1e-4;
+
+    start       =       tic;
+
+    for       i       =       1 : n_max
+
+        % Calculando os valores da função e gradiente
+        func_values(end + 1)       =       f(x);           % Salvar valor da função
+        grad_norms(end + 1)       =       norm(df(x));           % Salvar norma do gradiente
+
+        % Verificação de convergência
+        if       norm(r)       <       epsilon
+
+            break;
+        end
+
+        if       isnan(norm(df(x)))
+
+            fprintf(" \nDerivada muito próxima de zero! \n");
+            fprintf("Iteração %2.f \n", i);
+
+            % Gráfico de Convergência
+            figure;
+            subplot(2, 1, 1);
+            plot(func_values,       '-o');
+            title('Função Objetivo');
+            xlabel('Iterações');
+            ylabel('Valor da Função Objetivo');
+
+            subplot(2, 1, 2);
+            plot(grad_norms,       '-o');
+            title('Convergência da Norma do Gradiente');
+            xlabel('Iterações');
+            ylabel('Norma do Gradiente');
+
+            return
+        end
+
+        % Busca de Armijo para determinar o tamanho do passo
+        while       f(x + alpha * p)       >       f(x)       +       sigma * alpha * (r' * p)
+
+            alpha       =       beta * alpha;       % Reduzir o passo
+        end
+
+        % Atualização do ponto
+        x_new       =       x       +       alpha * p;
+        r_new       =       df(x_new);       % Novo resíduo
+
+        % Atualização da direção conjugada
+        beta       =       (r_new' * r_new) / (r' * r);
+        p       =       -r_new       +       beta * p;       % Nova direção
+
+        x       =       x_new;       % Atualizar x
+        r       =       r_new;       % Atualizar resíduo
+        fo = f(x);
+
+end
+
+end
+   
+   
+%% Método Quasi-Newton ===========================================================================================
+
+elseif       met_res       ==       4
+
+    % Seleção do método
+    busca  =       input(" \nUtilizar Método de Seção Áurea (1) ou Busca de Armijo (2)? ");
+
+    if       busca       ==       1
+
+        % Método de Seção Áurea
+        start       =       tic;
+
+        H       =       eye(length(x));       % Inicialização da matriz Hessiana inversa
+
+        for       i       =       1 : n_max
+
+            grad       =       df(x);       % Cálculo do gradiente
+
+            % Calculando os valores da função e gradiente
+            func_values(end + 1)       =       f(x);           % Salvar valor da função
+            grad_norms(end + 1)       =       norm(df(x));           % Salvar norma do gradiente
+
+            if       isnan(norm(df(x)))
+
+                fprintf(" \nDerivada muito próxima de zero! \n");
+                fprintf("Iteração %2.f \n", i);
+
+                % Gráfico de Convergência
+                figure;
+                subplot(2, 1, 1);
+                plot(func_values,       '-o');
+                title('Função Objetivo');
+                xlabel('Iterações');
+                ylabel('Valor da Função Objetivo');
+
+                subplot(2, 1, 2);
+                plot(grad_norms,       '-o');
+                title('Convergência da Norma do Gradiente');
+                xlabel('Iterações');
+                ylabel('Norma do Gradiente');
+
+                return
+            end
+
+            p       =       -H * grad;       % Direção de descida
+
+            % Busca de Seção Áurea
+            a       =       0;       % Limite inferior
+            b       =       2;       % Limite superior
+
+            % Inicialização dos pontos da seção áurea
+            x1       =       b       -       (b - a) / (1 + sqrt(5));
+            x2       =       a       +       (b - a) / (1 + sqrt(5));
+            f1       =       f(x + x1 * p);
+            f2       =       f(x + x2 * p);
+
+            while       (b - a)       >       epsilon
+
+                if       f1       <       f2
+
+                    b       =       x2;
+                    x2       =       x1;
+                    x1       =       b       -       (b - a) / (1 + sqrt(5));
+                    f1       =       f(x + x1 * p);
+
+                else
+
+                    a       =       x1;
+                    x1       =       x2;
+                    x2       =       a       +       (b - a) / (1 + sqrt(5));
+                    f2       =       f(x + x2 * p);
+                end
+            end
+
+            % Escolha do passo
+            if       f1       <       f2
+
+                tk       =       x1;
+
+            else
+
+                tk       =       x2;
+            end
+
+            x       =       x       +       tk * p;       % Atualização do ponto
+            fo       =       f(x);       % Avaliação da função no novo ponto
+
+            % Verificação de convergência
+            if       norm(grad)       <       epsilon
+
+                elapsed       =       toc(start);
+
+                fprintf(" \nSolução: \n");
+                fprintf("Número de iterações: %1.f \n", i);
+                fprintf("Função objetivo = %d \n", fo);
+                fprintf("Tempo computacional: %d segundos \n", elapsed);
+                fprintf("Norma do gradiente: %d \n", norm(df(x)));
+
+                % Gráfico de Convergência
+                figure;
+                subplot(2, 1, 1);
+                plot(func_values,       '-o');
+                title('Função Objetivo');
+                xlabel('Iterações');
+                ylabel('Valor da Função Objetivo');
+
+                subplot(2, 1, 2);
+                plot(grad_norms,       '-o');
+                title('Convergência da Norma do Gradiente');
+                xlabel('Iterações');
+                ylabel('Norma do Gradiente');
+
+                return;
+            end
+
+            % Atualização da matriz Hessiana inversa usando a fórmula BFGS
+            s       =       tk * p;
+            y       =       df(x)       -       grad;       % Nova diferença de gradiente
+            H       =       H       +       (y * y') / (y' * s)       -       (H * s * s' * H) / (s' * H * s);
+
+        end
+
+    elseif       busca       ==       2
+
+        % Busca de Armijo
+        alpha       =       1.0;       % Valor inicial do passo
+        beta       =       0.5;       % Fator de redução do passo
+        sigma       =       1e-4;
+
+        start       =       tic;
+
+        H       =       eye(length(x));       % Inicialização da matriz Hessiana inversa
+
+        for       i       =       1 : n_max
+
+            grad       =       df(x);       % Cálculo do gradiente
+
+            % Calculando os valores da função e gradiente
+            func_values(end + 1)       =       f(x);           % Salvar valor da função
+            grad_norms(end + 1)       =       norm(df(x));           % Salvar norma do gradiente
+
+            if       isnan(norm(df(x)))
+
+                fprintf(" \nDerivada muito próxima de zero! \n");
+                fprintf("Iteração %2.f \n", i);
+
+                % Gráfico de Convergência
+                figure;
+                subplot(2, 1, 1);
+                plot(func_values,       '-o');
+                title('Função Objetivo');
+                xlabel('Iterações');
+                ylabel('Valor da Função Objetivo');
+
+                subplot(2, 1, 2);
+                plot(grad_norms,       '-o');
+                title('Convergência da Norma do Gradiente');
+                xlabel('Iterações');
+                ylabel('Norma do Gradiente');
+
+                return
+            end
+
+            fo       =       f(x);
+
+            % Verificação de convergência
+            if       norm(grad)       <       epsilon
+
+                elapsed       =       toc(start);
+
+                fprintf(" \nSolução: \n");
+                fprintf("Número de iterações: %2.f \n", i);
+                fprintf("Função objetivo = %d \n", fo);
+                fprintf("Tempo computacional: %d segundos \n", elapsed);
+                fprintf("Norma do gradiente: %d \n", norm(df(x)));
+
+                % Gráfico de Convergência
+                figure;
+                subplot(2, 1, 1);
+                plot(func_values,       '-o');
+                title('Função Objetivo');
+                xlabel('Iterações');
+                ylabel('Valor da Função Objetivo');
+
+                subplot(2, 1, 2);
+                plot(grad_norms,       '-o');
+                title('Convergência da Norma do Gradiente');
+                xlabel('Iterações');
+                ylabel('Norma do Gradiente');
+
+                return;
+            end
+
+            p       =       -H * grad;       % Direção de Quasi-Newton
+
+            % Busca de passo com Armijo
+            while       f(x + alpha * p)       >       fo       +       sigma * alpha * (grad' * p)
+
+                alpha       =       beta * alpha;       % Reduzir o tamanho do passo
+            end
+
+            % Atualização do ponto
+            x       =       x       +       alpha * p;
+            fo       =       f(x);
+
+            % Atualização da matriz Hessiana inversa usando a fórmula BFGS
+            s       =       alpha * p;
+            y       =       df(x)       -       grad;       % Nova diferença de gradiente
+            H       =       H       +       (y * y') / (y' * s)       -       (H * s * s' * H) / (s' * H * s);
+
+        end
+
+    else
+
+        fprintf(" \nRecomence e escolha um dos métodos sugeridos. \n");
+        return;
+    end
+
+    elapsed       =       toc(start);
+
+    fprintf(" \nSolução: \n");
+    fprintf("Número de iterações: %2.f \n", i);
+    fprintf("Função objetivo = %d \n", fo);
+    fprintf("Tempo computacional: %d segundos \n", elapsed);
+    fprintf("Norma do gradiente: %d \n", norm(df(x)));
+
+    % Gráfico de Convergência
+                figure;
+                subplot(2, 1, 1);
+                plot(func_values,       '-o');
+                title('Função Objetivo');
+                xlabel('Iterações');
+                ylabel('Valor da Função Objetivo');
+
+                subplot(2, 1, 2);
+                plot(grad_norms,       '-o');
+                title('Convergência da Norma do Gradiente');
+                xlabel('Iterações');
+                ylabel('Norma do Gradiente');
