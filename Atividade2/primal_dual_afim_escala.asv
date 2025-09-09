@@ -1,0 +1,56 @@
+function [iter, fac_primal, fac_dual, gap, func_values, grad_fac_primal, grad_fac_dual, grad_gap] = primal_dual_afim_escala(c, A, b, x0, y0, z0, tau, tol)
+
+    x = x0;
+    y = y0;
+    z = z0;
+    iter = 1;
+    fac_primal = norm(b-A*x)/(norm(b)+1);
+    fac_dual = norm(c-A'*y-z)/(norm(c)+1);
+    gap = abs(c'*x-b'*y)/(1+c'*x+b'*y);
+
+    func_values = zeros(0, 1); % Vetor coluna vazio
+    grad_fac_primal = zeros(0, 1);
+    grad_fac_dual = zeros(0, 1);
+    grad_gap = zeros(0, 1);
+
+    while any(fac_primal > tol) || any(fac_dual > tol) || any(gap > tol)
+
+        func_values = [func_values; c' * x]; % Adicionar ao vetor coluna
+        grad_fac_primal = [grad_fac_primal; norm(b - A * x) / (norm(b) + 1)];
+        grad_fac_dual = [grad_fac_dual; norm(c - A' * y - z) / (norm(c) + 1)];
+        grad_gap = [grad_gap; abs(c' * x - b' * y) / (1 + c' * x + b' * y)];
+
+        % Calculate scaling matrices
+        D = chol(A);
+        X = diag(x);
+        Z = diag(z);
+
+        % Calculate residuals
+        rp = b - A * x;
+        rd = c - A' * y - z;
+        ra = -X*Z*exp(1); 
+
+        % Calculate search directions
+        dy = inv(A * inv(D)/A') / (rp + A * inv(D)*rd - A * inv(D)/inv(X)/ra);
+        dx = inv(D)/(A' * dy - rd + inv(X)/ra);
+        dz = inv(X)/(ra - Z * dx);
+
+        % Calculate step lengths
+        rho_p = min(-x(dx < 0) ./ dx(dx < 0));
+        rho_d = min(-z(dz < 0) ./ dz(dz < 0));
+
+        alpha_p = min(1, tau * rho_p); 
+        alpha_d = min(1, tau * rho_d);
+
+        % Update solutions
+        x = x + alpha_p * dx; 
+        y = y + alpha_d * dy;
+        z = z + alpha_d * dz;
+
+        fac_primal = norm(b-A*x)/(norm(b)+1);
+        fac_dual = norm(c-A'*y-z)/(norm(c)+1);
+        gap = abs(x'*z/(1+c'*x+b'*y));
+
+        iter = iter + 1;
+    end
+end
